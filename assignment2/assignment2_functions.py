@@ -124,13 +124,15 @@ def pre_process(df):
 
 	return processed_df
 
-def discretize(df, vars_to_discretize, n_bins):
+def discretize(df, vars_to_discretize, num_bins=10):
 	'''
 	This function discretizes a continous variable
 	'''
 	for item in vars_to_discretize:
+		# var_range = describe_data(df)[item]['max'] - describe_data(df)[item]['min']
+		# n_bins = var_range/10
 		new_label = item + '_discrete'
-		df[new_label] = pd.qcut(df[item], n_bins)
+		df[new_label] = pd.qcut(df[item], num_bins)
 
 	return df
 
@@ -151,16 +153,16 @@ def split_data(df, selected_features, selected_y, test_size):
 	'''
 	x = df[selected_features]
 	y = selected_y
-	x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_siz, random_state=1)
+	x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=1)
 
 	return x_train, x_test, y_train, y_test
 
-def build_classifier(x_train, x_test, y_train, y_test):
+def build_classifier(x_train, x_test, y_train, y_test, max_depth):
 	'''
 	This function builds a classifier using the decision trees module
 	'''
 	#Create Decision Tree classifier object
-	dec_tree = DecisionTreeClassifier()
+	dec_tree = DecisionTreeClassifier(criterion='entropy', max_depth=max_depth)
 
 	#Train Decision Tree classifier
 	dec_tree = dec_tree.fit(x_train, y_train)
@@ -168,9 +170,9 @@ def build_classifier(x_train, x_test, y_train, y_test):
 	#Predict response for test dataset
 	y_pred = dec_tree.predict(x_test)
 
-	return y_pred
+	return y_pred, dec_tree
 
-def evaluate_classifer(y_test, y_pred):
+def evaluate_classifier(y_test, y_pred):
 	'''
 	This function takes the predicted y values and y values from 
 	the test set and calculates the accuracy of the model
