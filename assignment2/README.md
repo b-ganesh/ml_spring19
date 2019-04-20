@@ -1,0 +1,1 @@
+This project creates functions for the machine learning pipeline, including exploring data, cleaning data, selecting features from the data, training a model, and then evaluating the accuracy of the model results. The ipython notebook called testing_functions uses the functions created on a credit dataset (credit-data.csv) and includes a writeup explaining results.
