@@ -12,14 +12,11 @@ from sklearn.feature_selection import SelectKBest
 TEST_GRID = {
             'RandomForest': {'n_estimators': [1], 'max_depth': [1], 'max_features': ['sqrt'],'min_samples_split': [10]},
             'LogisticRegression': {'penalty': ['l1'], 'C': [0.01]},
-            'SGDClassifier': { 'loss': ['perceptron'], 'penalty': ['l2']},
-            'ExtraTrees': {'n_estimators': [1], 'criterion' : ['gini'] ,'max_depth': [1], 'max_features': ['sqrt'],'min_samples_split': [10]},
-            'AdaBoost': {'algorithm': ['SAMME'], 'n_estimators': [1]},
-            'GradientBoostingClassifier': {'n_estimators': [1], 'learning_rate' : [0.1], 'subsample' : [0.5], 'max_depth': [1]},
-            'GaussianNB': {},
+            'Boosting': {'algorithm': ['SAMME'], 'n_estimators': [1]},
             'DecisionTreeClassifier': {'criterion': ['gini'], 'max_depth': [1], 'max_features': ['sqrt'],'min_samples_split': [10]},
             'SVM': {'C':[0.01],'kernel':['linear']},
             'KNeighborsClassifier': {'n_neighbors': [5],'weights': ['uniform'],'algorithm': ['auto']}
+            'Baseline': {}
             }
 
 MODELS_TO_RUN = ['RandomForest', 'LogisticRegression', 'DecisionTreeClassifier']
@@ -186,7 +183,8 @@ def gen_model(train_x, train_y, test_x, model, parameters, n_cores=1):
 def run_models(df, models_list, selected_features, selected_y, test_size, random_state=1):
     for model in models_list:
         train_x, train_y, text_x, test_y = split_data(df, selected_features, selected_y, test_size)
-        
+    #sometimes want to pre-process the data after the splits? check with someone.
+
 
 
 
