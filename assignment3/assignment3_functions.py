@@ -220,6 +220,17 @@ def cols_to_dummy(df, col_list, val):
     return df
 
 
+def process(df, val):
+    '''
+    '''
+    processed_df = df.copy(deep=True)
+    na_cols = [col for col in processed_df if col.startswith('val')]
+    for col in na_cols:
+        df[col] = df[col].fillna(df[col].median())
+
+    return df
+
+
 def split_data(df, selected_features, selected_y, test_size):
     '''
     This function takes a dataframe, a list of selected features, 
@@ -243,56 +254,23 @@ def split_data(df, selected_features, selected_y, test_size):
     return x_train, x_test, y_train, y_test
 
 
-def temporal_validate(start_time, end_time, prediction_windows):
-    '''
-    '''
-    start_time_date = datetime.strptime(start_time, '%Y-%m-%d')
-    end_time_date = datetime.strptime(end_time, '%Y-%m-%d')
-
-    temp_split = []
-
-    for prediction_window in prediction_windows:
-        windows = 1
-        test_end_time = start_time_date
-        while (end_time_date >= test_end_time + relativedelta(months=+prediction_window)):
-            train_start_time = start_time_date
-            train_end_time = train_start_time + windows * relativedelta(months=+prediction_window) - relativedelta(days=+1)
-            test_start_time = train_end_time + relativedelta(days=+1)
-            test_end_time = test_start_time  + relativedelta(months=+prediction_window) - relativedelta(days=+1)
-            temp_split.append([train_start_time,train_end_time,test_start_time,test_end_time,prediction_window])
-
-
-            windows += 1
-
-    return temp_split
-
-
-def temporal_split(df, time_var, selected_y, train_start, train_end, test_start, test_end):
-    '''
-    '''
-    train_data = df[(df[time_var] >= train_start) & (df[time_var] <= train_end)]
-    train_data.drop([time_var], axis=1)
-    y_train = train_data[selected_y]
-    x_train = train_data.drop([selected_y, time_var], axis=1)
-    test_data = df[(df[time_var] >= test_start) & (df[time_var] <= test_end)]
-    test_data.drop([time_var], axis=1)
-    y_test = test_data[selected_y]
-    x_test = test_data.drop([selected_y, time_var], axis=1)
-
-    return x_train, x_test, y_train, y_test
-
-
-def process(df, val):
-    '''
-    '''
-    processed_df = df.copy(deep=True)
-    na_cols = [col for col in processed_df if col.startswith('val')]
-    for col in na_cols:
-        df[col] = df[col].fillna(df[col].median())
-
-    return df
-
 def build_classifier(x_train, y_train, models_to_run, params_dict=None):
+    '''
+    This function takes an x-train set and a y-train set, a list of models to
+    run, and an optional dictionary of parameters, and returns a dictionary
+    of fitted models.
+
+    Inputs:
+        models_dict: dictionary mapping model name to classifer
+        x_train: x training set
+        y_train: y training set
+        models_to_run: list of models to run
+        params_dict(optional): dictionary of parameters. If not included,
+        uses default parameters.
+
+    Returns:
+        dictionary of fitted models
+    '''
 
     models_dict = {'RF': ensemble.RandomForestClassifier,
                    'LR': linear_model.LogisticRegression,
@@ -320,9 +298,19 @@ def build_classifier(x_train, y_train, models_to_run, params_dict=None):
     return fitted_models
 
 
+
 def generate_binary_at_k(y_pred_scores, k):
     '''
-    Converts probability score into binary outcome measure based upon cutoff.
+
+    This function onverts probability scores into a binary outcome 
+    measure based on cutoff.
+
+    Inputs: 
+        y_pred_scores: dataframe of predicted probabilites for y
+        k: (float) threshold
+
+    Returns:
+        binary predictions
     '''
     cutoff_index = int(len(y_pred_scores) * (k / 100.0))
     test_predictions_binary = [1 if x < cutoff_index else 0 for x in range(len(y_pred_scores))]
@@ -331,6 +319,17 @@ def generate_binary_at_k(y_pred_scores, k):
 
 def evaluation_scores_at_k(y_test, y_pred_scores, k):
     '''
+    This function uses sklearn's built in evaluation metrics
+    to calculate precision, accuracy, recall for models, for 
+    a specified k threshold.
+
+    Inputs:
+        y_test: dataframe of true y values
+        y_pred_scores: dataframe of predicted probabilites for y
+        k: (float) threshold
+
+    Returns:
+        precision, accuracy, recall at k
     '''
     y_pred_at_k = generate_binary_at_k(y_pred_scores, k)
     precision_at_k = metrics.precision_score(y_test, y_pred_at_k)
@@ -342,6 +341,16 @@ def evaluation_scores_at_k(y_test, y_pred_scores, k):
 
 def f1_at_k(y_test, y_pred_scores, k):
     '''
+    This function uses sklearn's built in evaluation metrics
+    to calculate f1 for models, for a specified k threshold.
+
+    Inputs:
+        y_test: dataframe of true y values
+        y_pred_scores: dataframe of predicted probabilites for y
+        k: (float) threshold
+
+    Returns:
+        f1 score at k
     '''
     y_pred_at_k = generate_binary_at_k(y_pred_scores, k)
     f1_at_k = metrics.f1_score(y_test, y_pred_scores)
@@ -351,7 +360,15 @@ def f1_at_k(y_test, y_pred_scores, k):
 
 def joint_sort_descending(l1, l2):
     '''
-    Sorts y_test and y_pred in descending order of probability.
+    Code adapted from Rayid Ghani's ml_functions in magic loop.
+    This function sorts y_test and y_pred in descending order of probability.
+
+    Inputs: 
+        l1: list 1
+        l2: list 2
+
+    Returns:
+        sorted lists
     '''
     idx = np.argsort(l1)[::-1]
     return l1[idx], l2[idx]
@@ -359,6 +376,18 @@ def joint_sort_descending(l1, l2):
 
 def create_eval_table(x_test, y_test, fitted_models, k_list, models_of_interest):
     '''
+    This function calculates predicted probabilities and 
+    creates an evaluation table for non-temporal train, test splits
+
+    Inputs:
+        x_test: dataframe of true x values
+        y_test: dataframe of true y values
+        fitted_models: dictionary of fitted models
+        k_list: list of thresholds 
+        models_of interest: models to show in table
+
+    Returns:
+        pandas dataframe of evaluation table
     '''
     eval_dict = {'model': [], 'k': [], 'precision': [], 'accuracy': [], 'recall': [], 'auc': []}
 
@@ -373,12 +402,10 @@ def create_eval_table(x_test, y_test, fitted_models, k_list, models_of_interest)
         for k in k_list:
             eval_dict['k'].append(k)
             precision_at_k, accuracy_at_k, recall_at_k = evaluation_scores_at_k(y_test, y_pred_scores, k)
-            # f1 = f1_at_k(y_test, y_pred_scores, k)
             eval_dict['model'].append(model)
             eval_dict['precision'].append(precision_at_k)
             eval_dict['accuracy'].append(accuracy_at_k)
             eval_dict['recall'].append(recall_at_k)
-            # eval_dict['f1'].append(f1)
             eval_dict['auc'].append(metrics.roc_auc_score(y_test, y_pred_scores))
 
     return pd.DataFrame.from_dict(eval_dict)
@@ -386,7 +413,12 @@ def create_eval_table(x_test, y_test, fitted_models, k_list, models_of_interest)
 
 def plot_precision_recall_n(y_test, y_pred_scores, model_name):
     '''
-    Plots precision-recall curve for a given model.
+    This function plots precision-recall curve for a given model.
+
+    Inputs:
+        y_test: true y values
+        y_pred_scores: dataframe of predicted y values
+        model_name: title for chart, model name        
     '''
     y_score = y_pred_scores
     precision_curve, recall_curve, pr_thresholds = precision_recall_curve(y_test, y_pred_scores)
@@ -418,9 +450,89 @@ def plot_precision_recall_n(y_test, y_pred_scores, model_name):
     plt.show()
 
 
+def temporal_validate(start_time, end_time, prediction_windows):
+    '''
+    Adapted from Rayid's magic loops repository. This function takes 
+    a start time, end time, and prediction window as arguments and 
+    returns a list of lists of the time splits.
+
+    Inputs:
+        start_time: date of the form Y-M-D
+        end_time: date of the form Y-M-D
+        prediction_windows: 
+
+    Returns:
+        list of lists of datetime objects
+    '''
+    start_time_date = datetime.strptime(start_time, '%Y-%m-%d')
+    end_time_date = datetime.strptime(end_time, '%Y-%m-%d')
+
+    temp_split = []
+
+    for prediction_window in prediction_windows:
+        windows = 1
+        test_end_time = start_time_date
+        while (end_time_date >= test_end_time + relativedelta(months=+prediction_window)):
+            train_start_time = start_time_date
+            train_end_time = train_start_time + windows * relativedelta(months=+prediction_window) - relativedelta(days=+1)
+            test_start_time = train_end_time + relativedelta(days=+1)
+            test_end_time = test_start_time  + relativedelta(months=+prediction_window) - relativedelta(days=+1)
+            temp_split.append([train_start_time,train_end_time,test_start_time,test_end_time,prediction_window])
+
+
+            windows += 1
+
+    return temp_split
+
+
+def temporal_split(df, time_var, selected_y, train_start, train_end, test_start, test_end):
+    '''
+    This function takes a dataframe and splits it into training and test 
+    sets depending on the starting and end times provided. 
+
+    Inputs:
+        df: pandas dataframe of interest
+        time_var: variable in dataset representing time
+        selected_y: variable to predict
+        train_start: starting time for train set
+        train_end: ending time for train set
+        test_start: starting time for test set
+        test_end: ending time for test set
+
+    Returns:
+        x_train, x_test, y_train, y_test: train/test splits
+    '''
+    train_data = df[(df[time_var] >= train_start) & (df[time_var] <= train_end)]
+    train_data.drop([time_var], axis=1)
+    y_train = train_data[selected_y]
+    x_train = train_data.drop([selected_y, time_var], axis=1)
+    test_data = df[(df[time_var] >= test_start) & (df[time_var] <= test_end)]
+    test_data.drop([time_var], axis=1)
+    y_test = test_data[selected_y]
+    x_test = test_data.drop([selected_y, time_var], axis=1)
+
+    return x_train, x_test, y_train, y_test
+
  
 def create_temporal_eval_table(models_to_run, classifiers, parameters, df, selected_y, temp_split, time_var, outfile):
     '''
+    This function makes a temporal evaluation table, with train size, test_size, start and end times for temporal splits,
+    AUC, precision, and recall at various thresholds. 
+
+    Inputs:
+        models_to_run: list of models to run
+        classifiers: dictionary with classifiers
+        parameters: specified parameters
+        df: full dataframe
+        selected_y: predicted variable
+        temp_split: list of lists with temporal split start and end times
+        time_var: variable representing time
+        outfile: filepath for outputing results table 
+
+    Returns: 
+        results_df: dataframe with train size, test_size, start and end times for temporal splits,
+        AUC, precision, and recall at various thresholds. 
+        params: list of parameters used to generate model
     '''
     results_df = pd.DataFrame(columns=('train_start', 'train_end', 'test_start', 'test_end', 'model_type', 'classifier', 'train_size', 'test_size', 'auc-roc',
         'p_at_1', 'a_at_1', 'r_at_1', 'p_at_2', 'a_at_2', 'r_at_2', 'p_at_5', 'a_at_5', 'r_at_5', 'p_at_10', 'a_at_10', 'r_at_10', 
