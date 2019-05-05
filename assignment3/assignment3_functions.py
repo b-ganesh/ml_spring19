@@ -175,21 +175,6 @@ def identify_ol(df, vars_to_describe=None):
 
     return df_out
 
-# def pre_process(df):
-#     '''
-#     This function takes a dataframe and fills in missing values
-#     for each column in the data, based on the median of the column.
-
-#     Inputs:
-#         pandas dataframe
-
-#     Returns:
-#         pandas dataframe with missing values filled
-#     '''
-#     processed_df = df.copy(deep=True)
-#     processed_df = processed_df.fillna(processed_df.median())
-
-#     return processed_df
 
 def discretize(df, vars_to_discretize, num_bins=10):
     '''
@@ -258,26 +243,26 @@ def split_data(df, selected_features, selected_y, test_size):
     return x_train, x_test, y_train, y_test
 
 
-def temporal_validate(start_time, end_time, prediction_window, update_window):
+def temporal_validate(start_time, end_time, prediction_windows):
     '''
-    Starting from start time, create training sets incrementing in number of months specified by prediction_window, with 
-    test set beginning one day following the end of training set for a duration of the number of months specified by
-    prediction_window. Continue until end_time is reached.
-    Returns list outlining train start, train end, test start, and test end for all temporal splits.
     '''
-    temp_split = []
-
     start_time_date = datetime.strptime(start_time, '%Y-%m-%d')
     end_time_date = datetime.strptime(end_time, '%Y-%m-%d')
 
-    test_end_time = end_time_date    
-    while (test_end_time >= start_time_date + 1.9 * relativedelta(months=+prediction_window)):
-        test_start_time = test_end_time - relativedelta(months=+prediction_window) + relativedelta(days=+1)
-        train_end_time = test_start_time - relativedelta(days=+1)
-        train_start_time = train_end_time - relativedelta(months=+prediction_window) + relativedelta(days=+2)
-        temp_split.append([train_start_time,train_end_time,test_start_time,test_end_time])
-        test_end_time -= relativedelta(months=+update_window)
+    temp_split = []
 
+    for prediction_window in prediction_windows:
+        windows = 1
+        test_end_time = start_time_date
+        while (end_time_date >= test_end_time + relativedelta(months=+prediction_window)):
+            train_start_time = start_time_date
+            train_end_time = train_start_time + windows * relativedelta(months=+prediction_window) - relativedelta(days=+1)
+            test_start_time = train_end_time + relativedelta(days=+1)
+            test_end_time = test_start_time  + relativedelta(months=+prediction_window) - relativedelta(days=+1)
+            temp_split.append([train_start_time,train_end_time,test_start_time,test_end_time,prediction_window])
+
+
+            windows += 1
 
     return temp_split
 
@@ -309,13 +294,12 @@ def process(df, val):
 
 def build_classifier(x_train, y_train, models_to_run, params_dict=None):
 
-    models_dict = {'RandomForest': ensemble.RandomForestClassifier,
-                   'LogisticRegression': linear_model.LogisticRegression,
-                   'KNeighbors': neighbors.KNeighborsClassifier,
-                   'DecisionTree': tree.DecisionTreeClassifier,
-                   'SVM': svm.SVC,
-                   'Boosting': ensemble.AdaBoostClassifier,
-                   'Bagging': ensemble.BaggingClassifier,
+    models_dict = {'RF': ensemble.RandomForestClassifier,
+                   'LR': linear_model.LogisticRegression,
+                   'KNN': neighbors.KNeighborsClassifier,
+                   'DT': tree.DecisionTreeClassifier,
+                   'SVM': svm.LinearSVC,
+                   'AB': ensemble.AdaBoostClassifier,
                    }
 
     fitted_models = {}
@@ -352,39 +336,59 @@ def evaluation_scores_at_k(y_test, y_pred_scores, k):
     precision_at_k = metrics.precision_score(y_test, y_pred_at_k)
     accuracy_at_k = metrics.accuracy_score(y_test, y_pred_at_k)
     recall_at_k = metrics.recall_score(y_test, y_pred_at_k)
-    f1_at_k = metrics.f1_score(y_test, y_pred_at_k)
 
-    return precision_at_k, accuracy_at_k, recall_at_k, f1_at_k
+    return precision_at_k, accuracy_at_k, recall_at_k
+
+
+def f1_at_k(y_test, y_pred_scores, k):
+    '''
+    '''
+    y_pred_at_k = generate_binary_at_k(y_pred_scores, k)
+    f1_at_k = metrics.f1_score(y_test, y_pred_scores)
+
+    return f1_at_k
+
 
 def joint_sort_descending(l1, l2):
     '''
     Sorts y_test and y_pred in descending order of probability.
-    Adapted with permission from Rayid Ghani, Data Science for Social Good: https://github.com/rayidghani/magicloops 
     '''
     idx = np.argsort(l1)[::-1]
     return l1[idx], l2[idx]
 
 
-def create_eval_table(x_train, x_test, y_train, y_test, fitted_models, k):
+def create_eval_table(x_test, y_test, fitted_models, k_list, models_of_interest):
     '''
     '''
-    eval_dict = {'model': [], 'precision': [], 'accuracy': [], 'recall': []}
+    eval_dict = {'model': [], 'k': [], 'precision': [], 'accuracy': [], 'recall': [], 'auc': []}
 
-    for model in fitted_models:
-        y_pred_scores = fitted_models[model].predict_proba(x_test)[:,1]
-        precision_at_k, accuracy_at_k, recall_at_k = evaluation_scores_at_k(y_test, y_pred_scores, k)
-        eval_dict['model'].append(model)
-        eval_dict['precision'].append(precision_at_k)
-        eval_dict['accuracy'].append(accuracy_at_k)
-        eval_dict['recall'].append(recall_at_k)
+    for model in models_of_interest:
+        print('running through...')
+        print(model)
+        if model == "SVM":
+            y_pred_scores = fitted_models[model].decision_function(x_test)
+        else:
+            y_pred_scores = fitted_models[model].predict_proba(x_test)[:,1]
 
-    return pd.dataframe_from_dict(eval_dict)
+        for k in k_list:
+            eval_dict['k'].append(k)
+            precision_at_k, accuracy_at_k, recall_at_k = evaluation_scores_at_k(y_test, y_pred_scores, k)
+            # f1 = f1_at_k(y_test, y_pred_scores, k)
+            eval_dict['model'].append(model)
+            eval_dict['precision'].append(precision_at_k)
+            eval_dict['accuracy'].append(accuracy_at_k)
+            eval_dict['recall'].append(recall_at_k)
+            # eval_dict['f1'].append(f1)
+            eval_dict['auc'].append(metrics.roc_auc_score(y_test, y_pred_scores))
+
+    return pd.DataFrame.from_dict(eval_dict)
 
 
 def plot_precision_recall_n(y_test, y_pred_scores, model_name):
     '''
     Plots precision-recall curve for a given model.
     '''
+    y_score = y_pred_scores
     precision_curve, recall_curve, pr_thresholds = precision_recall_curve(y_test, y_pred_scores)
     precision_curve = precision_curve[:-1]
     recall_curve = recall_curve[:-1]
@@ -413,8 +417,9 @@ def plot_precision_recall_n(y_test, y_pred_scores, model_name):
     #plt.savefig(name)
     plt.show()
 
+
  
-def create_temporal_eval_table(models_to_run, classifiers, parameters, df, selected_y, temp_split, time_var):
+def create_temporal_eval_table(models_to_run, classifiers, parameters, df, selected_y, temp_split, time_var, outfile):
     '''
     '''
     results_df = pd.DataFrame(columns=('train_start', 'train_end', 'test_start', 'test_end', 'model_type', 'classifier', 'train_size', 'test_size', 'auc-roc',
@@ -435,27 +440,30 @@ def create_temporal_eval_table(models_to_run, classifiers, parameters, df, selec
                     params.append(p)
                     try:
                         classifier.set_params(**p)
-                        y_pred_probs = classifier.fit(x_train, y_train).predict_proba(x_test)[:,1]
+                        if models_to_run[index] == 'SVM':
+                            y_pred_probs = classifier.fit(x_train, y_train).decision_function(x_test)
+                        else:
+                            y_pred_probs = classifier.fit(x_train, y_train).predict_proba(x_test)[:,1]
                         y_pred_probs_sorted, y_test_sorted = zip(*sorted(zip(y_pred_probs, y_test), reverse=True))
-                        precision_1, accuracy_1, recall_1, f1_1 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 1.0)
-                        precision_2, accuracy_2, recall_2, f1_2 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 2.0)
-                        precision_5, accuracy_5, recall_5, f1_5 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 5.0)
-                        precision_10, accuracy_10, recall_10, f1_10 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 10.0)
-                        precision_20, accuracy_20, recall_20, f1_20 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 20.0)
-                        precision_30, accuracy_30, recall_30, f1_30 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 30.0)
-                        precision_50, accuracy_50, recall_50, f1_50 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 50.0)
+                        precision_1, accuracy_1, recall_1 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 1.0)
+                        precision_2, accuracy_2, recall_2 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 2.0)
+                        precision_5, accuracy_5, recall_5 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 5.0)
+                        precision_10, accuracy_10, recall_10 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 10.0)
+                        precision_20, accuracy_20, recall_20 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 20.0)
+                        precision_30, accuracy_30, recall_30 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 30.0)
+                        precision_50, accuracy_50, recall_50 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 50.0)
                         results_df.loc[len(results_df)] = [train_start, train_end, test_start, test_end,
                                                            models_to_run[index],
                                                            classifier,
                                                            y_train.shape[0], y_test.shape[0],
                                                            metrics.roc_auc_score(y_test_sorted, y_pred_probs),
-                                                           precision_1, accuracy_1, recall_1, f1_1,
-                                                           precision_2, accuracy_2, recall_2, f1_2,
-                                                           precision_5, accuracy_5, recall_5, f1_5,
-                                                           precision_10, accuracy_10, recall_10, f1_10,
-                                                           precision_20, accuracy_20, recall_20, f1_20,
-                                                           precision_30, accuracy_30, recall_30, f1_30,
-                                                           precision_50, accuracy_50, recall_50, f1_50]
+                                                           precision_1, accuracy_1, recall_1,
+                                                           precision_2, accuracy_2, recall_2,
+                                                           precision_5, accuracy_5, recall_5,
+                                                           precision_10, accuracy_10, recall_10,
+                                                           precision_20, accuracy_20, recall_20,
+                                                           precision_30, accuracy_30, recall_30,
+                                                           precision_50, accuracy_50, recall_50]
 
                     except IndexError as e:
                         print('Error:',e)
@@ -466,7 +474,7 @@ def create_temporal_eval_table(models_to_run, classifiers, parameters, df, selec
                         '', '', '', '']
 
     
-    # results_df.to_csv(outfile)
+    results_df.to_csv(outfile)
 
     return results_df, params
 
