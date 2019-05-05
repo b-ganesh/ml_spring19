@@ -6,6 +6,8 @@ assignment3.html: html version of jupyter notebook
 
 assignment3.ipynb: jupyter notebook exploring data and producing results/plots step by step
 
+assignment3_functions: underlying functions for ML pipeline, and imported into jupyter notebook
+
 donors_choose_report.pdf: pdf report explaining results to a policy audience
 
 final_tables.csv: final tables for 3-month temporal splits
