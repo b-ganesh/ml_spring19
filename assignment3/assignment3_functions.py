@@ -223,9 +223,6 @@ def impute_by(df, col, by='median'):
     '''
     Replace the NaNs with the column mean, median, or mode
     '''
-    # na_cols = [col for col in processed_df if col.startswith('val')]
-
-    # for col in na_cols:
     if by == 'median':
         df[col].fillna(df[col].median(), inplace=True)
     elif by == 'mode':
@@ -235,19 +232,9 @@ def impute_by(df, col, by='median'):
     else:
         df[col].fillna(df[col].mean(), inplace=True)
 
-# def median_imputation(df, val):
-#     '''
-#     '''
-#     na_cols = [col for col in processed_df if col.startswith('val')]
-#     for col in na_cols:
-#         df[col] = df[col].fillna(df[col].median())
-
-#     return df
-
 def pre_process(train, test, categorical_list, to_dummy_list, continuous_impute_list, vars_to_drop):
     '''
     '''
-    # need to add to features set, so same 
     features_train = set()
     features_test = set()
     final_features = set()
@@ -270,52 +257,6 @@ def pre_process(train, test, categorical_list, to_dummy_list, continuous_impute_
     final_features = list(features_train.intersection(features_test))
 
     return final_processed_train, final_processed_test, final_features
-    #return features as well
-
-
-# def build_classifier(x_train, y_train, models_to_run, params_dict=None):
-#     '''
-#     This function takes an x-train set and a y-train set, a list of models to
-#     run, and an optional dictionary of parameters, and returns a dictionary
-#     of fitted models.
-
-#     Inputs:
-#         models_dict: dictionary mapping model name to classifer
-#         x_train: x training set
-#         y_train: y training set
-#         models_to_run: list of models to run
-#         params_dict(optional): dictionary of parameters. If not included,
-#         uses default parameters.
-
-#     Returns:
-#         dictionary of fitted models
-#     '''
-
-#     models_dict = {'RF': ensemble.RandomForestClassifier,
-#                    'LR': linear_model.LogisticRegression,
-#                    'KNN': neighbors.KNeighborsClassifier,
-#                    'DT': tree.DecisionTreeClassifier,
-#                    'SVM': svm.LinearSVC,
-#                    'AB': ensemble.AdaBoostClassifier,
-#                    }
-
-#     fitted_models = {}
-
-#     for model in models_to_run:
-#         print('running model,')
-#         print(model)
-#         if params_dict:
-#             params = params_dict[model]
-#             model_obj = models_dict[model](**params) 
-#         else:
-#             model_obj = models_dict[model]()
-
-#         trained = model_obj.fit(x_train, y_train)
-
-#         fitted_models[model] = trained
-
-#     return fitted_models
-
 
 def generate_binary_at_k(y_pred_scores, k):
     '''
@@ -357,26 +298,6 @@ def evaluation_scores_at_k(y_test, y_pred_scores, k):
 
     return precision_at_k, accuracy_at_k, recall_at_k, f1_at_k
 
-
-# def f1_at_k(y_test, y_pred_scores, k):
-#     '''
-#     This function uses sklearn's built in evaluation metrics
-#     to calculate f1 for models, for a specified k threshold.
-
-#     Inputs:
-#         y_test: dataframe of true y values
-#         y_pred_scores: dataframe of predicted probabilites for y
-#         k: (float) threshold
-
-#     Returns:
-#         f1 score at k
-#     '''
-#     y_pred_at_k = generate_binary_at_k(y_pred_scores, k)
-#     f1_at_k = metrics.f1_score(y_test, y_pred_scores)
-
-#     return f1_at_k
-
-
 def joint_sort_descending(l1, l2):
     '''
     Code adapted from Rayid Ghani's ml_functions in magic loop.
@@ -391,43 +312,6 @@ def joint_sort_descending(l1, l2):
     '''
     idx = np.argsort(l1)[::-1]
     return l1[idx], l2[idx]
-
-
-# def create_eval_table(x_test, y_test, fitted_models, k_list, models_of_interest):
-#     '''
-#     This function calculates predicted probabilities and 
-#     creates an evaluation table for non-temporal train, test splits
-
-#     Inputs:
-#         x_test: dataframe of true x values
-#         y_test: dataframe of true y values
-#         fitted_models: dictionary of fitted models
-#         k_list: list of thresholds 
-#         models_of interest: models to show in table
-
-#     Returns:
-#         pandas dataframe of evaluation table
-#     '''
-#     eval_dict = {'model': [], 'k': [], 'precision': [], 'accuracy': [], 'recall': [], 'auc': []}
-
-#     for model in models_of_interest:
-#         print('running through...')
-#         print(model)
-#         if model == "SVM":
-#             y_pred_scores = fitted_models[model].decision_function(x_test)
-#         else:
-#             y_pred_scores = fitted_models[model].predict_proba(x_test)[:,1]
-
-#         for k in k_list:
-#             eval_dict['k'].append(k)
-#             precision_at_k, accuracy_at_k, recall_at_k = evaluation_scores_at_k(y_test, y_pred_scores, k)
-#             eval_dict['model'].append(model)
-#             eval_dict['precision'].append(precision_at_k)
-#             eval_dict['accuracy'].append(accuracy_at_k)
-#             eval_dict['recall'].append(recall_at_k)
-#             eval_dict['auc'].append(metrics.roc_auc_score(y_test, y_pred_scores))
-
-#     return pd.DataFrame.from_dict(eval_dict)
 
 
 def plot_precision_recall_n(y_test, y_pred_scores, model_name):
@@ -554,6 +438,7 @@ def temporal_split(df, time_var, selected_y, train_start, train_end, test_start,
 
     return x_train, x_test, y_train, y_test
 
+
 def create_eval_table(models_to_run, classifiers, parameters, df, x_train, x_test, y_train, y_test, train_start, train_end, test_start, test_end):
 
     results_df = pd.DataFrame(columns=('train_start', 'train_end', 'test_start', 'test_end', 'model_type', 'classifier', 'train_size', 'test_size', 'auc-roc',
@@ -622,12 +507,6 @@ def run_models(models_to_run, classifiers, parameters, df, selected_y, categoric
         AUC, precision, and recall at various thresholds. 
         params: list of parameters used to generate model
     '''
-    # results_df = pd.DataFrame(columns=('train_start', 'train_end', 'test_start', 'test_end', 'model_type', 'classifier', 'train_size', 'test_size', 'auc-roc',
-    #     'p_at_1', 'a_at_1', 'r_at_1', 'f1_at_1', 'p_at_2', 'a_at_2', 'r_at_2', 'f1_at_2', 'p_at_5', 'a_at_5', 'r_at_5', 'f1_at_5', 'p_at_10', 'a_at_10', 'r_at_10', 'f1_at_10',
-    #     'p_at_20', 'a_at_20', 'r_at_20', 'f1_at_20', 'p_at_30', 'a_at_30', 'r_at_30', 'f1_at_30', 'p_at_50', 'a_at_50', 'r_at_50', 'f1_at_50'))
-
-    # params = []
-
     if temp_split:
         for timeframe in temp_split:
             train_start, train_end, test_start, test_end = timeframe[0], timeframe[1], timeframe[2], timeframe[3]
@@ -636,39 +515,6 @@ def run_models(models_to_run, classifiers, parameters, df, selected_y, categoric
             x_train = x_train[features]
             x_test = x_test[features]
             results_df, params = create_eval_table(models_to_run, classifiers, parameters, df, x_train, x_test, y_train, y_test, train_start, train_end, test_start, test_end)
-
-
-            # for index, classifier in enumerate([classifiers[x] for x in models_to_run]):
-            #         print("Running through model {}...".format(models_to_run[index]))
-            #         parameter_values = parameters[models_to_run[index]]
-            #         for p in ParameterGrid(parameter_values):
-            #             params.append(p)
-            #             try:
-            #                 classifier.set_params(**p)
-            #                 if models_to_run[index] == 'SVM':
-            #                     y_pred_probs = classifier.fit(x_train, y_train).decision_function(x_test)
-            #                 else:
-            #                     y_pred_probs = classifier.fit(x_train, y_train).predict_proba(x_test)[:,1]
-            #                 y_pred_probs_sorted, y_test_sorted = zip(*sorted(zip(y_pred_probs, y_test), reverse=True))
-            #                 precision_1, accuracy_1, recall_1, f1_1 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 1.0)
-            #                 precision_2, accuracy_2, recall_2, f1_2 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 2.0)
-            #                 precision_5, accuracy_5, recall_5, f1_5 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 5.0)
-            #                 precision_10, accuracy_10, recall_10, f1_10 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 10.0)
-            #                 precision_20, accuracy_20, recall_20, f1_20 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 20.0)
-            #                 precision_30, accuracy_30, recall_30, f1_30 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 30.0)
-            #                 precision_50, accuracy_50, recall_50, f1_50 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 50.0)
-            #                 results_df.loc[len(results_df)] = [train_start, train_end, test_start, test_end,
-            #                                                    models_to_run[index],
-            #                                                    classifier,
-            #                                                    y_train.shape[0], y_test.shape[0],
-            #                                                    metrics.roc_auc_score(y_test_sorted, y_pred_probs),
-            #                                                    precision_1, accuracy_1, recall_1, f1_1,
-            #                                                    precision_2, accuracy_2, recall_2, f1_2,
-            #                                                    precision_5, accuracy_5, recall_5, f1_5,
-            #                                                    precision_10, accuracy_10, recall_10, f1_10,
-            #                                                    precision_20, accuracy_20, recall_20, f1_20,
-            #                                                    precision_30, accuracy_30, recall_30, f1_30,
-            #                                                    precision_50, accuracy_50, recall_50, f1_50]
     else:
         x_train, x_test, y_train, y_test = split_data(df, selected_y, selected_features)
         x_train, x_test, features = pre_process(x_train, x_test, categorical_list, to_dummy_list, continuous_impute_list, vars_to_drop)
