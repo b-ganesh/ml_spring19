@@ -8,7 +8,7 @@ Assignment 5 Final.ipynb: jupyter notebook exploring data and producing results/
 
 assignment3_functions: underlying functions for ML pipeline, and imported into jupyter notebook
 
-donors_choose_report_updates.pdf: pdf report explaining results to a policy audience
+donors_choose_report_updated.pdf: pdf report explaining results to a policy audience
 
 table_final.csv: final evaluation tables
 
