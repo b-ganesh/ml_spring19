@@ -213,6 +213,19 @@ def categorize(df, vars_to_categorize):
 
 
 def cols_to_dummy(df, col_list, val):
+    '''
+    This function takes a dataframe, a list of columns, and
+    a value that needs to be changed to a dummy. It returns
+    a dataframe with this dummified column.
+
+    Inputs:
+        pandas dataframe
+        list of columns to dummify
+        value to change to 1
+
+    Returns:
+        pandas dataframe with dummy variables
+    '''
     for col in col_list:
         df[col] = df[col].apply(lambda x: 1 if x == val else 0)
 
@@ -221,7 +234,13 @@ def cols_to_dummy(df, col_list, val):
 
 def impute_by(df, col, by='median'):
     '''
-    Replace the NaNs with the column mean, median, or mode
+    Replace the NaNs with the column mean, median, or mode.
+    Changes the column in place.
+
+    Inputs:
+        pandas dataframe
+        column to impute
+        method to impute by
     '''
     if by == 'median':
         df[col].fillna(df[col].median(), inplace=True)
@@ -234,6 +253,19 @@ def impute_by(df, col, by='median'):
 
 def pre_process(train, test, categorical_list, to_dummy_list, continuous_impute_list, vars_to_drop):
     '''
+    This function takes a training set and a testing set and pre-processes columns in the dataset,
+    to prepare them for the machine learning pipeline. 
+    The function takes a few lists of features to pre-process.
+
+    Inputs:
+        categorical_list: list of variables to make categorical
+        to_dummy_list: list of variables to convert to dummies
+        continious_impute_list: list of variables to impute
+        vars_to_drop: list of variables to drop
+
+    Returns:
+        processed train and test sets and list of features in common between 
+        train and test sets
     '''
     features_train = set()
     features_test = set()
@@ -260,8 +292,7 @@ def pre_process(train, test, categorical_list, to_dummy_list, continuous_impute_
 
 def generate_binary_at_k(y_pred_scores, k):
     '''
-
-    This function onverts probability scores into a binary outcome 
+    This function converts probability scores into a binary outcome 
     measure based on cutoff.
 
     Inputs: 
@@ -288,7 +319,7 @@ def evaluation_scores_at_k(y_test, y_pred_scores, k):
         k: (float) threshold
 
     Returns:
-        precision, accuracy, recall at k
+        precision, accuracy, recall, f1 at k.
     '''
     y_pred_at_k = generate_binary_at_k(y_pred_scores, k)
     precision_at_k = metrics.precision_score(y_test, y_pred_at_k)
@@ -316,6 +347,7 @@ def joint_sort_descending(l1, l2):
 
 def plot_precision_recall_n(y_test, y_pred_scores, model_name):
     '''
+    Code adapted from Rayid Ghani's ml_functions in magic loop.
     This function plots precision-recall curve for a given model.
 
     Inputs:
@@ -349,15 +381,14 @@ def plot_precision_recall_n(y_test, y_pred_scores, model_name):
     
     name = model_name
     plt.title(name)
-    #plt.savefig(name)
     plt.show()
 
 
 def temporal_dates(start_time, end_time, prediction_windows, grace_period=None):
     '''
     Adapted from Rayid's magic loops repository. This function takes 
-    a start time, end time, and prediction window as arguments and 
-    returns a list of lists of the time splits.
+    a start time, end time, prediction window, and a grace period (time to assess evaluation) 
+    as arguments and returns a list of lists of the time splits.
 
     Inputs:
         start_time: date of the form Y-M-D
@@ -423,6 +454,7 @@ def temporal_split(df, time_var, selected_y, train_start, train_end, test_start,
         train_end: ending time for train set
         test_start: starting time for test set
         test_end: ending time for test set
+        vars_to_drop_dates: date variables to drop
 
     Returns:
         x_train, x_test, y_train, y_test: train/test splits
@@ -439,107 +471,98 @@ def temporal_split(df, time_var, selected_y, train_start, train_end, test_start,
     return x_train, x_test, y_train, y_test
 
 
-def create_eval_table(models_to_run, classifiers, parameters, df, x_train, x_test, y_train, y_test, train_start, train_end, test_start, test_end):
+def evaluation_metrics(k_list, y_test_sorted, y_pred_probs_sorted):
+    '''
+    This function takes a list of k values (percent of population) and
+    returns a list of precision, accuracy, recall, and f1 values at
+    those k values.
+    '''
+    full_list = []
+    for k in k_list:
+        precision, accuracy, recall, f1 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, k)
+        full_list.append(precision)
+        full_list.append(accuracy)
+        full_list.append(recall)
+        full_list.append(f1)
 
+    return full_list
+
+
+def run_models(models_to_run, classifiers, parameters, df, selected_y, temp_split, time_var, categorical_list, to_dummy_list, continuous_impute_list, vars_to_drop, vars_to_drop_dates, k_list, outfile):
+    '''
+    Adapted from Rayid's magic loops repository.
+    This function loops through all the models and classifiers and produces a grid with evaluation metrics at 1%, 2%, 5%, 10%, 20%, 30%, and 50% of the population.
+
+    Inputs:
+        models_to_run: list of models to run
+        classifiers: classifiers to use
+        parameters: parameter grid to use
+        df: pandas dataframe with full data
+        selected_y: variable to predict
+        temp_split: dates to split on
+        time_var: time variable to use
+        categorical_list: list of variables to categorize
+        to_dummy_list: list of variables to dummify
+        continiuous_impute_list: list of variables to impute
+        vars_to_drop: list of variables to drop
+        vars_to_drop_dates: list of date variables to drop
+        k_list: list of k values (percent of population) to calculate eval metrics for
+        outfile: filename for output of final grid
+
+    Returns:
+        results_df: dataframe (grid) of models and evaluation metrics
+        params: model parameters
+    '''
     results_df = pd.DataFrame(columns=('train_start', 'train_end', 'test_start', 'test_end', 'model_type', 'classifier', 'train_size', 'test_size', 'auc-roc',
         'p_at_1', 'a_at_1', 'r_at_1', 'f1_at_1', 'p_at_2', 'a_at_2', 'r_at_2', 'f1_at_2', 'p_at_5', 'a_at_5', 'r_at_5', 'f1_at_5', 'p_at_10', 'a_at_10', 'r_at_10', 'f1_at_10',
         'p_at_20', 'a_at_20', 'r_at_20', 'f1_at_20', 'p_at_30', 'a_at_30', 'r_at_30', 'f1_at_30', 'p_at_50', 'a_at_50', 'r_at_50', 'f1_at_50'))
 
     params = []
 
-    for index, classifier in enumerate([classifiers[x] for x in models_to_run]):
-        print("Running through model {}...".format(models_to_run[index]))
-        parameter_values = parameters[models_to_run[index]]
-        for p in ParameterGrid(parameter_values):
-            params.append(p)
-            try:
-                classifier.set_params(**p)
-                if models_to_run[index] == 'SVM':
-                    y_pred_probs = classifier.fit(x_train, y_train).decision_function(x_test)
-                else:
-                    y_pred_probs = classifier.fit(x_train, y_train).predict_proba(x_test)[:,1]
-                y_pred_probs_sorted, y_test_sorted = zip(*sorted(zip(y_pred_probs, y_test), reverse=True))
-                precision_1, accuracy_1, recall_1, f1_1 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 1.0)
-                precision_2, accuracy_2, recall_2, f1_2 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 2.0)
-                precision_5, accuracy_5, recall_5, f1_5 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 5.0)
-                precision_10, accuracy_10, recall_10, f1_10 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 10.0)
-                precision_20, accuracy_20, recall_20, f1_20 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 20.0)
-                precision_30, accuracy_30, recall_30, f1_30 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 30.0)
-                precision_50, accuracy_50, recall_50, f1_50 = evaluation_scores_at_k(y_test_sorted, y_pred_probs_sorted, 50.0)
-                results_df.loc[len(results_df)] = [train_start, train_end, test_start, test_end,
-                                                   models_to_run[index],
-                                                   classifier,
-                                                   y_train.shape[0], y_test.shape[0],
-                                                   metrics.roc_auc_score(y_test_sorted, y_pred_probs),
-                                                   precision_1, accuracy_1, recall_1, f1_1,
-                                                   precision_2, accuracy_2, recall_2, f1_2,
-                                                   precision_5, accuracy_5, recall_5, f1_5,
-                                                   precision_10, accuracy_10, recall_10, f1_10,
-                                                   precision_20, accuracy_20, recall_20, f1_20,
-                                                   precision_30, accuracy_30, recall_30, f1_30,
-                                                   precision_50, accuracy_50, recall_50, f1_50]
-
-            except IndexError as e:
-                print('Error:',e)
-                continue
-
-    return results_df, params
-
-
- 
-def run_models(models_to_run, classifiers, parameters, df, selected_y, categorical_list, to_dummy_list, continuous_impute_list, vars_to_drop, vars_to_drop_dates, outfile, temp_split=None, time_var=None, selected_features=None):
-    '''
-    This function makes a temporal evaluation table, with train size, test_size, start and end times for temporal splits,
-    AUC, precision, and recall at various thresholds. 
-
-    Inputs:
-        models_to_run: list of models to run
-        classifiers: dictionary with classifiers
-        parameters: specified parameters, 
-        df: full dataframe
-        selected_y: predicted variable
-        temp_split: list of lists with temporal split start and end times
-        time_var: variable representing time
-        outfile: filepath for outputing results table 
-
-    Returns: 
-        results_df: dataframe with train size, test_size, start and end times for temporal splits,
-        AUC, precision, and recall at various thresholds. 
-        params: list of parameters used to generate model
-    '''
-    if temp_split:
-        for timeframe in temp_split:
-            train_start, train_end, test_start, test_end = timeframe[0], timeframe[1], timeframe[2], timeframe[3]
-            x_train, x_test, y_train, y_test = temporal_split(df, time_var, selected_y, train_start, train_end, test_start, test_end, vars_to_drop_dates)
-            x_train, x_test, features = pre_process(x_train, x_test, categorical_list, to_dummy_list, continuous_impute_list, vars_to_drop)
-            x_train = x_train[features]
-            x_test = x_test[features]
-            results_df, params = create_eval_table(models_to_run, classifiers, parameters, df, x_train, x_test, y_train, y_test, train_start, train_end, test_start, test_end)
-    else:
-        x_train, x_test, y_train, y_test = split_data(df, selected_y, selected_features)
+    for timeframe in temp_split:
+        train_start, train_end, test_start, test_end = timeframe[0], timeframe[1], timeframe[2], timeframe[3]
+        x_train, x_test, y_train, y_test = temporal_split(df, time_var, selected_y, train_start, train_end, test_start, test_end, vars_to_drop_dates)
         x_train, x_test, features = pre_process(x_train, x_test, categorical_list, to_dummy_list, continuous_impute_list, vars_to_drop)
         x_train = x_train[features]
         x_test = x_test[features]
-        results_df, params = create_eval_table(models_to_run, classifiers, parameters, df, x_train, x_test, y_train, y_test)
+        for index, classifier in enumerate([classifiers[x] for x in models_to_run]):
+                print("Running through model {}...".format(models_to_run[index]))
+                parameter_values = parameters[models_to_run[index]]
+                for p in ParameterGrid(parameter_values):
+                    params.append(p)
+                    try:
+                        classifier.set_params(**p)
+                        if models_to_run[index] == 'SVM':
+                            y_pred_probs = classifier.fit(x_train, y_train).decision_function(x_test)
+                        else:
+                            y_pred_probs = classifier.fit(x_train, y_train).predict_proba(x_test)[:,1]
+                        y_pred_probs_sorted, y_test_sorted = zip(*sorted(zip(y_pred_probs, y_test), reverse=True))
+                        metric_list = evaluation_metrics(k_list, y_test_sorted, y_pred_probs_sorted)
+                        results_df.loc[len(results_df)] = [train_start, train_end, test_start, test_end,
+                                                           models_to_run[index],
+                                                           classifier,
+                                                           y_train.shape[0], y_test.shape[0],
+                                                           metrics.roc_auc_score(y_test_sorted, y_pred_probs),
+                                                           metric_list[0], metric_list[1], metric_list[2], metric_list[3],
+                                                           metric_list[4], metric_list[5], metric_list[6], metric_list[7],
+                                                           metric_list[8], metric_list[9], metric_list[10], metric_list[11],
+                                                           metric_list[12], metric_list[13], metric_list[14], metric_list[15],
+                                                           metric_list[16], metric_list[17], metric_list[18], metric_list[19],
+                                                           metric_list[20], metric_list[21], metric_list[22], metric_list[23],
+                                                           metric_list[24], metric_list[25], metric_list[26], metric_list[27]]
 
-    results_df.loc[len(results_df)] = [train_start, train_end, test_start, test_end, "baseline", '', '', '',
-                    y_test.sum()/len(y_test), '', '', '', '', '', '', '', '', '', '', '', '', '','', '', '', '',
-                    '', '', '', '', '', '', '', '', '', '', '']
+                    except IndexError as e:
+                        print('Error:',e)
+                        continue
 
+        results_df.loc[len(results_df)] = [train_start, train_end, test_start, test_end, "baseline", '', '', '',
+                        y_test.sum()/len(y_test), '', '', '', '', '', '', '', '', '', '', '', '', '','', '', '', '',
+                        '', '', '', '', '', '', '', '', '', '', '']
 
+    
     results_df.to_csv(outfile)
 
     return results_df, params
-
-
-
-
-
-
-
-
-
-
 
 
 
