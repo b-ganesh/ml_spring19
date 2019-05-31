@@ -1,19 +1,15 @@
-This assignment looks at DonorsChoose data and predicts the likelihood that a project will be funded within 60 days of posting. 
+This assignment looks at DonorsChoose data and predicts the likelihood that a project will not be funded within 60 days of posting. 
 
-The files are as follows:
+The updated files can be found in the pipeline_redo folder. This folder contains the following files:
 
-assignment3.html: html version of jupyter notebook
+Assignment 5 Final.html: html version of jupyter notebook
 
-assignment3.ipynb: jupyter notebook exploring data and producing results/plots step by step
+Assignment 5 Final.ipynb: jupyter notebook exploring data and producing results/plots step by step
 
 assignment3_functions: underlying functions for ML pipeline, and imported into jupyter notebook
 
-donors_choose_report.pdf: pdf report explaining results to a policy audience
+donors_choose_report_updates.pdf: pdf report explaining results to a policy audience
 
-final_tables.csv: final tables for 3-month temporal splits
-
-final_tables_6mo_2.csv: final tables for 6-month temporal splits
+table_final.csv: final evaluation tables
 
 projects_2012_2013.csv: data used for prediction task
-
-Note: The report does not include the full tables. Where the report references an appendix, one should look at files called "final_tables.csv" and "final_tables_6mo_2.csv".
